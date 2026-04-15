@@ -1,9 +1,10 @@
 package com.novibe.common.data_sources;
 
-import com.novibe.common.util.DataParser;
 import org.springframework.stereotype.Service;
 
-import java.util.function.Predicate;
+import java.util.Objects;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @Service
 public class HostsOverrideListsLoader extends ListLoader<HostsOverrideListsLoader.BypassRoute> {
@@ -12,21 +13,44 @@ public class HostsOverrideListsLoader extends ListLoader<HostsOverrideListsLoade
     }
 
     @Override
+    protected Stream<BypassRoute> lineParser(String urlList) {
+        return Pattern.compile("\\r?\\n").splitAsStream(urlList)
+                .parallel()
+                .map(String::strip)
+                .filter(str -> !str.isBlank())
+                .filter(line -> !line.startsWith("#"))
+                .map(this::mapLine)
+                .filter(Objects::nonNull);
+    }
+
+    @Override
     protected String listType() {
         return "Override";
     }
 
-    @Override
-    protected Predicate<String> filterRelatedLines() {
-        return line -> !HostsBlockListsLoader.isBlock(line);
-    }
+    private BypassRoute mapLine(String line) {
+        // убираем inline-комментарии
+        int commentIndex = line.indexOf("#");
+        if (commentIndex != -1) {
+            line = line.substring(0, commentIndex).trim();
+        }
 
-    @Override
-    protected BypassRoute toObject(String line) {
-        int delimiter = line.indexOf(" ");
-        String ip = line.substring(0, delimiter++);
-        String website = DataParser.removeWWW(line.substring(delimiter).strip());
-        return new BypassRoute(ip, website);
-    }
+        if (line.isBlank()) {
+            return null;
+        }
 
+        String[] parts = line.split("\\s+");
+
+        // формат: "IP domain"
+        if (parts.length >= 2) {
+            return new BypassRoute(parts[0], parts[1]);
+        }
+
+        // формат: "domain" (как в GeoHideDNS)
+        if (parts.length == 1) {
+            return new BypassRoute("0.0.0.0", parts[0]);
+        }
+
+        return null;
+    }
 }
