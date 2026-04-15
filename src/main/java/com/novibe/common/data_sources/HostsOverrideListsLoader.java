@@ -41,16 +41,19 @@ public class HostsOverrideListsLoader extends ListLoader<HostsOverrideListsLoade
 
         String[] parts = line.split("\\s+");
 
-        // формат: "IP domain"
-        if (parts.length >= 2) {
-            return new BypassRoute(parts[0], parts[1]);
+        // нам нужен строго формат: IP domain
+        if (parts.length < 2) {
+            return null; // игнор (например: "domain.com")
         }
 
-        // формат: "domain" (как в GeoHideDNS)
-        if (parts.length == 1) {
-            return new BypassRoute("0.0.0.0", parts[0]);
+        String ip = parts[0];
+        String domain = parts[1];
+
+        // игнор блокирующих IP (по твоей логике)
+        if (ip.equals("0.0.0.0") || ip.equals("127.0.0.1")) {
+            return null;
         }
 
-        return null;
+        return new BypassRoute(ip, domain);
     }
 }
